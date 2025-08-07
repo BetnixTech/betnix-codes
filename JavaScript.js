@@ -1,3 +1,6 @@
+// WARNING: This uses eval(), which can be dangerous!
+// Do not use this with untrusted user input.
+// by Betnix Devolpers
 function evaluateJS(input) {
   try {
     const result = eval(input);
