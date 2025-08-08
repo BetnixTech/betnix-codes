@@ -158,4 +158,4 @@ if (lintErrors.length > 0) {
 const godboltCompilersUrls = ["https://godbolt.org/api/compilers"];
 
 // === Optional: Highlight.js script for syntax highlighting ===
-const highlightjs = ["https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.0/highlight.min.js"];
+const highlightjs = ["https://dxdev745.github.io/betnix-codes/10.7.0/highlight.js"];
