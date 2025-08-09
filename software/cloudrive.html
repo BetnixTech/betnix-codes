@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/png" href="https://online.stat.psu.edu/statprogram/sites/statprogram/files/inline-images/one%20drive%20icon.png">
+  <title>Betnix CloudDrive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .file-card { transition: transform .12s ease, box-shadow .12s ease; user-select:none; }
+    .file-card:hover{ transform: translateY(-4px); box-shadow: 0 6px 20px rgba(0,0,0,.08)}
+    .dropzone.active{ outline: 4px dashed rgba(99,102,241,.25)}
+    .file-card.dragging {
+      opacity: 0.6;
+      border: 2px dashed #4f46e5;
+    }
+    #folderList li.selected, #tagList li.selected {
+      background-color: #4f46e5;
+      color: white;
+      font-weight: 600;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    #folderList li, #tagList li {
+      cursor: pointer;
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.25rem;
+      user-select:none;
+      position: relative;
+    }
+    #folderList li:hover, #tagList li:hover {
+      background-color: #c7d2fe;
+    }
+    #folderList li.folder-item {
+      padding-left: 0.5rem;
+    }
+    #breadcrumbs {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      user-select:none;
+    }
+    #breadcrumbs span {
+      cursor: pointer;
+      color: #4f46e5;
+    }
+    #breadcrumbs span:hover {
+      text-decoration: underline;
+    }
+    /* Indentation for nested folders */
+    #folderList li {
+      padding-left: calc(0.5rem + var(--depth, 0) * 1rem);
+    }
+    /* Folder drag highlight */
+    #folderList li.dragover-folder {
+      border: 2px dashed #4f46e5;
+      background-color: #e0e7ff;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans">
+  <div class="max-w-7xl mx-auto p-6">
+    <header class="flex items-center justify-between gap-4 mb-6 flex-wrap">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold">CD</div>
+        <div>
+          <h1 class="text-2xl font-semibold">Advanced CloudDrive</h1>
+          <p class="text-sm text-slate-500 max-w-md">Offline-enabled cloud storage demo with nested folders, previews, multi-file uploads, batch actions, tagging, draggable files, and 10GB storage limit.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <input id="search" placeholder="Search files or folders" class="px-3 py-2 rounded-md border" />
+        <label class="bg-indigo-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-indigo-700">
+          Upload
+          <input id="fileInput" type="file" multiple hidden />
+        </label>
+        <button id="newFolderBtn" class="bg-white border px-3 py-2 rounded-md">New Folder</button>
+        <button id="batchDelete" class="bg-red-600 text-white px-3 py-2 rounded-md">Batch Delete</button>
+        <button id="emptyDb" class="text-sm text-red-600">Clear All</button>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-4 gap-6">
+      <aside class="col-span-1 bg-white rounded-lg p-4 shadow-sm overflow-auto max-h-[70vh]">
+        <h3 class="font-medium mb-2">Folders</h3>
+        <ul id="folderList" class="space-y-1 text-sm text-slate-700" aria-label="Folder list"></ul>
+        <h3 class="font-medium mt-4 mb-2">Tags</h3>
+        <ul id="tagList" class="space-y-2 text-sm text-slate-700" aria-label="Tag list"></ul>
+      </aside>
+      <section class="col-span-3">
+        <div id="dropzone" class="dropzone bg-white rounded-lg p-4 mb-4 border-dashed border-2 border-transparent">
+          <div class="flex items-center justify-between flex-wrap">
+            <div>
+              <nav id="breadcrumbs" aria-label="Breadcrumb"></nav>
+              <div class="text-xs text-slate-500">Drag & drop multiple files or use the Upload button</div>
+            </div>
+            <div class="text-sm text-slate-400" id="storageInfo">Stored in browser (IndexedDB, max 10GB)</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm text-slate-600" id="summary">0 items</div>
+          <div class="flex gap-2">
+            <select id="viewMode" class="border rounded-md px-2 py-1" aria-label="View mode">
+              <option value="grid">Grid</option>
+              <option value="list">List</option>
+            </select>
+            <select id="sortBy" class="border rounded-md px-2 py-1" aria-label="Sort files">
+              <option value="new">Newest</option>
+              <option value="old">Oldest</option>
+              <option value="name">Name</option>
+              <option value="size">Size</option>
+            </select>
+          </div>
+        </div>
+        <div id="filesContainer" class="grid grid-cols-4 gap-4" aria-label="Files container"></div>
+      </section>
+    </main>
+
+    <div id="previewModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="bg-white rounded-lg max-w-3xl w-full overflow-auto p-4">
+        <div class="flex justify-between items-center mb-4">
+          <div class="font-semibold" id="previewTitle"></div>
+          <div class="flex gap-2">
+            <button id="downloadPreview" class="px-3 py-1 border rounded">Download</button>
+            <button id="closePreview" class="px-3 py-1 border rounded">Close</button>
+          </div>
+        </div>
+        <div id="previewContent" class="max-h-[60vh] overflow-auto"></div>
+        <div class="mt-4">
+          <label class="block font-semibold mb-1" for="tagInput">Tags (comma separated):</label>
+          <input id="tagInput" class="w-full border rounded p-2" placeholder="Add or edit tags" />
+          <button id="saveTagsBtn" class="mt-2 bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700">Save Tags</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const MAX_STORAGE = 10 * 1024 * 1024 * 1024; // 10GB in bytes
+let usedStorage = 0;
+let db;
+let currentFolder = '/';  // current folder path
+let filesCache = [];
+let selectedTags = new Set();
+let draggedFileId = null;
+let draggedFileType = null; // "file" or "folder"
+let draggedFolderName = null;
+
+const separator = '/';
+
+// IndexedDB Setup
+const request = indexedDB.open('CloudDrive', 3);
+request.onupgradeneeded = function(e) {
+  db = e.target.result;
+  if (!db.objectStoreNames.contains('files')) {
+    const store = db.createObjectStore('files', { keyPath: 'id', autoIncrement: true });
+    store.createIndex('folder', 'folder', { unique: false });
+    store.createIndex('name', 'name', { unique: false });
+  }
+};
+request.onsuccess = function(e) {
+  db = e.target.result;
+  loadFiles();
+  renderBreadcrumbs();
+  loadFoldersAndTags();
+};
+
+function formatSize(bytes) {
+  if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  return bytes + ' B';
+}
+
+function checkStorageLimit(fileSize) {
+  if (usedStorage + fileSize > MAX_STORAGE) {
+    alert('Storage limit reached: 10GB maximum');
+    return false;
+  }
+  return true;
+}
+
+function loadFiles() {
+  const tx = db.transaction('files', 'readonly');
+  const store = tx.objectStore('files');
+  const getAll = store.getAll();
+  getAll.onsuccess = function() {
+    filesCache = getAll.result;
+    usedStorage = filesCache.reduce((sum, f) => sum + f.size, 0);
+    renderFiles();
+    renderStorageInfo();
+    loadFoldersAndTags();
+    renderBreadcrumbs();
+  };
+}
+
+// Get unique folder list, with nested structure as array of folder paths
+function getAllFolders() {
+  const folderSet = new Set(filesCache.map(f => f.folder || '/'));
+  folderSet.add('/'); // ensure root
+  return Array.from(folderSet);
+}
+
+// Returns folder depth level for indentation
+function getFolderDepth(folderPath) {
+  if(folderPath === '/') return 0;
+  return folderPath.split(separator).length - 1;
+}
+
+// Renders the folders list in sidebar with indentation and drag/drop to move files
+function loadFoldersAndTags() {
+  const folders = getAllFolders().sort((a,b) => a.localeCompare(b));
+  const folderList = document.getElementById('folderList');
+  folderList.innerHTML = '';
+
+  folders.forEach(folder => {
+    const li = document.createElement('li');
+    li.textContent = folder === '/' ? '/ (root)' : folder;
+    li.style.setProperty('--depth', getFolderDepth(folder));
+    li.classList.add('folder-item');
+    if(folder === currentFolder) li.classList.add('selected');
+
+    li.tabIndex = 0; // make focusable
+    li.addEventListener('click', () => {
+      currentFolder = folder;
+      renderFiles();
+      renderBreadcrumbs();
+      loadFoldersAndTags();
+    });
+
+    // Drag & drop to move files onto folder
+    li.addEventListener('dragover', e => {
+      e.preventDefault();
+      li.classList.add('dragover-folder');
+      e.dataTransfer.dropEffect = 'move';
+    });
+    li.addEventListener('dragleave', e => {
+      li.classList.remove('dragover-folder');
+    });
+    li.addEventListener('drop', e => {
+      e.preventDefault();
+      li.classList.remove('dragover-folder');
+      if(draggedFileType === 'file') moveFileToFolder(draggedFileId, folder);
+      else if(draggedFileType === 'folder') moveFolderToFolder(draggedFolderName, folder);
+    });
+
+    // Drag folder itself to move it inside other folder (optional advanced)
+    li.draggable = true;
+    li.addEventListener('dragstart', e => {
+      draggedFileType = 'folder';
+      draggedFolderName = folder;
+      draggedFileId = null;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', e => {
+      draggedFileType = null;
+      draggedFolderName = null;
+      draggedFileId = null;
+    });
+
+    folderList.appendChild(li);
+  });
+
+  // Tags
+  const allTags = new Set();
+  filesCache.forEach(f => {
+    if(f.tags) f.tags.forEach(t => allTags.add(t));
+  });
+  const tagList = document.getElementById('tagList');
+  tagList.innerHTML = '';
+  allTags.forEach(tag => {
+    const li = document.createElement('li');
+    li.textContent = tag;
+    li.className = selectedTags.has(tag) ? 'selected' : '';
+    li.onclick = () => {
+      if(selectedTags.has(tag)) selectedTags.delete(tag);
+      else selectedTags.add(tag);
+      renderFiles();
+      loadFoldersAndTags();
+    };
+    tagList.appendChild(li);
+  });
+}
+
+// Breadcrumbs rendering
+function renderBreadcrumbs() {
+  const bc = document.getElementById('breadcrumbs');
+  bc.innerHTML = '';
+
+  if(currentFolder === '/') {
+    const span = document.createElement('span');
+    span.textContent = '/ (root)';
+    bc.appendChild(span);
+    return;
+  }
+
+  const parts = currentFolder.split(separator).filter(Boolean);
+  let pathAcc = '';
+  const rootSpan = document.createElement('span');
+  rootSpan.textContent = '/';
+  rootSpan.style.fontWeight = '600';
+  rootSpan.onclick = () => {
+    currentFolder = '/';
+    renderFiles();
+    renderBreadcrumbs();
+    loadFoldersAndTags();
+  };
+  bc.appendChild(rootSpan);
+
+  parts.forEach((part, idx) => {
+    const sepSpan = document.createElement('span');
+    sepSpan.textContent = ' / ';
+    bc.appendChild(sepSpan);
+
+    pathAcc += separator + part;
+    const folderSpan = document.createElement('span');
+    folderSpan.textContent = part;
+    folderSpan.style.fontWeight = '600';
+    folderSpan.onclick = () => {
+      currentFolder = pathAcc;
+      renderFiles();
+      renderBreadcrumbs();
+      loadFoldersAndTags();
+    };
+    bc.appendChild(folderSpan);
+  });
+}
+
+// Move file to a folder
+function moveFileToFolder(fileId, targetFolder) {
+  const file = filesCache.find(f => f.id === fileId);
+  if (!file) return;
+  file.folder = targetFolder;
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+  store.put(file).onsuccess = () => {
+    loadFiles();
+  };
+}
+
+// Move folder into another folder (move all files in dragged folder and nested folders)
+function moveFolderToFolder(folderName, targetFolder) {
+  if(folderName === targetFolder) return alert("Can't move a folder into itself");
+  if(targetFolder.startsWith(folderName + separator)) return alert("Can't move a folder inside its own subfolder");
+
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+
+  // Move all files with folder starting with folderName to new path
+  filesCache.forEach(f => {
+    if(f.folder === folderName || f.folder.startsWith(folderName + separator)) {
+      // Replace folderName prefix with targetFolder + folderName's subpath
+      let newFolder = f.folder.replace(folderName, targetFolder === '/' ? '' : targetFolder);
+      if(newFolder === '') newFolder = '/';
+      else if(!newFolder.startsWith(separator)) newFolder = separator + newFolder;
+      f.folder = newFolder;
+      store.put(f);
+    }
+  });
+
+  tx.oncomplete = () => {
+    loadFiles();
+    if(currentFolder.startsWith(folderName)) {
+      currentFolder = targetFolder;
+      renderBreadcrumbs();
+      loadFoldersAndTags();
+    }
+  };
+}
+
+// Render files in current folder with filters
+function renderFiles() {
+  const container = document.getElementById('filesContainer');
+  container.innerHTML = '';
+
+  // Filter files by currentFolder & selectedTags & search
+  let filtered = filesCache.filter(f => f.folder === currentFolder);
+
+  if (selectedTags.size) {
+    filtered = filtered.filter(f => f.tags && f.tags.some(t => selectedTags.has(t)));
+  }
+
+  const searchTerm = document.getElementById('search').value.trim().toLowerCase();
+  if (searchTerm) {
+    filtered = filtered.filter(f =>
+      f.name.toLowerCase().includes(searchTerm) ||
+      (f.tags && f.tags.some(t => t.toLowerCase().includes(searchTerm)))
+    );
+  }
+
+  // Sort files
+  const sortBy = document.getElementById('sortBy').value;
+  filtered.sort((a,b) => {
+    if(sortBy === 'new') return b.id - a.id;
+    if(sortBy === 'old') return a.id - b.id;
+    if(sortBy === 'name') return a.name.localeCompare(b.name);
+    if(sortBy === 'size') return a.size - b.size;
+    return 0;
+  });
+
+  // Render file cards
+  filtered.forEach(file => {
+    const div = document.createElement('div');
+    div.className = 'file-card bg-white rounded-lg p-4 shadow-sm cursor-pointer';
+    if(document.getElementById('viewMode').value === 'list') div.style.width = '100%';
+    div.draggable = true;
+    div.dataset.id = file.id;
+    div.innerHTML = `
+      <div class='font-medium truncate' title="${file.name}">${file.name}</div>
+      <div class='text-xs text-slate-500'>${formatSize(file.size)}</div>
+      <div class='text-xs mt-1 text-slate-400'>Tags: ${file.tags ? file.tags.join(', ') : '-'}</div>
+    `;
+    div.addEventListener('click', e => {
+      if(e.target.tagName !== 'BUTTON') previewFile(file);
+    });
+
+    // Drag handlers for reorder within folder
+    div.addEventListener('dragstart', e => {
+      draggedFileId = file.id;
+      draggedFileType = 'file';
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', file.id);
+    });
+    div.addEventListener('dragend', e => {
+      draggedFileId = null;
+      draggedFileType = null;
+      div.classList.remove('dragging');
+    });
+    div.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      if (draggedFileId === null || draggedFileId === file.id) return;
+      reorderFiles(draggedFileId, file.id);
+    });
+
+    container.appendChild(div);
+  });
+
+  document.getElementById('summary').textContent = `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`;
+}
+
+// Reorder files inside the current folder by swapping their IDs' order in filesCache
+function reorderFiles(draggedId, targetId) {
+  const draggedIndex = filesCache.findIndex(f => f.id === draggedId);
+  const targetIndex = filesCache.findIndex(f => f.id === targetId);
+  if(draggedIndex === -1 || targetIndex === -1) return;
+
+  // Remove dragged file and insert before target file
+  const [draggedFile] = filesCache.splice(draggedIndex, 1);
+  filesCache.splice(targetIndex, 0, draggedFile);
+
+  // Update files IDs to reflect new order (IDs are auto-increment, but we can simulate ordering by timestamps or custom order if needed)
+  // For simplicity, here we just rewrite all files with new IDs, which is complex and not great. So skipping reordering persistence.
+  // Instead, just re-render to reflect drag-and-drop order visually.
+  renderFiles();
+}
+
+// Preview logic
+let previewedFile = null;
+const previewModal = document.getElementById('previewModal');
+const previewTitle = document.getElementById('previewTitle');
+const previewContent = document.getElementById('previewContent');
+const tagInput = document.getElementById('tagInput');
+
+function previewFile(file) {
+  previewedFile = file;
+  previewTitle.textContent = file.name;
+  previewContent.innerHTML = '';
+
+  // Try to show previews for images, video, audio, PDFs, or text/code files
+  if(file.type.startsWith('image/')) {
+    const img = document.createElement('img');
+    img.src = file.data;
+    img.style.maxWidth = '100%';
+    previewContent.appendChild(img);
+  }
+  else if(file.type.startsWith('video/')) {
+    const video = document.createElement('video');
+    video.controls = true;
+    video.src = file.data;
+    video.style.maxWidth = '100%';
+    previewContent.appendChild(video);
+  }
+  else if(file.type.startsWith('audio/')) {
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = file.data;
+    previewContent.appendChild(audio);
+  }
+  else if(file.type === 'application/pdf') {
+    const iframe = document.createElement('iframe');
+    iframe.src = file.data;
+    iframe.style.width = '100%';
+    iframe.style.height = '600px';
+    previewContent.appendChild(iframe);
+  }
+  else if(file.type.startsWith('text/') 
+      || file.name.endsWith('.py') 
+      || file.name.endsWith('.js') 
+      || file.name.endsWith('.html') 
+      || file.name.endsWith('.css') 
+      || file.name.endsWith('.json')) {
+    const pre = document.createElement('pre');
+    try {
+      // base64 decode
+      pre.textContent = atob(file.data.split(',')[1]);
+    } catch(e) {
+      pre.textContent = 'Error decoding file content.';
+    }
+    pre.className = 'whitespace-pre-wrap bg-gray-100 p-2 rounded';
+    previewContent.appendChild(pre);
+  }
+  else {
+    const p = document.createElement('p');
+    p.textContent = 'Preview not available for this file type.';
+    previewContent.appendChild(p);
+  }
+
+  tagInput.value = file.tags ? file.tags.join(', ') : '';
+  previewModal.classList.remove('hidden');
+}
+
+// Download preview file - updated for better browser compatibility using Blob and ObjectURL
+document.getElementById('downloadPreview').addEventListener('click', () => {
+  if(!previewedFile) return;
+
+  // Extract base64 data from data URL
+  const base64Data = previewedFile.data.split(',')[1];
+  const contentType = previewedFile.type || 'application/octet-stream';
+
+  // Convert base64 to raw binary data held in a Uint8Array
+  const byteCharacters = atob(base64Data);
+  const byteNumbers = new Array(byteCharacters.length);
+  for(let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+
+  // Create blob and temporary URL
+  const blob = new Blob([byteArray], {type: contentType});
+  const url = URL.createObjectURL(blob);
+
+  // Create anchor, trigger download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = previewedFile.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // Release URL object
+  URL.revokeObjectURL(url);
+});
+
+// Close preview
+document.getElementById('closePreview').addEventListener('click', () => {
+  previewModal.classList.add('hidden');
+  previewContent.innerHTML = '';
+  previewedFile = null;
+});
+
+// Save tags for previewed file
+document.getElementById('saveTagsBtn').addEventListener('click', () => {
+  if(!previewedFile) return;
+  const tags = tagInput.value.split(',').map(t => t.trim()).filter(t => t.length > 0);
+  previewedFile.tags = tags;
+
+  // Update in DB
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+  store.put(previewedFile).onsuccess = () => {
+    loadFiles();
+    loadFoldersAndTags();
+  };
+});
+
+// Upload new files handler
+document.getElementById('fileInput').addEventListener('change', async e => {
+  const files = e.target.files;
+  if(!files.length) return;
+
+  for(const file of files) {
+    if(!checkStorageLimit(file.size)) continue;
+
+    // Read file as data URL
+    const dataUrl = await readFileAsDataURL(file);
+    const newFile = {
+      id: Date.now() + Math.random(),
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      folder: currentFolder,
+      tags: [],
+      data: dataUrl
+    };
+    const tx = db.transaction('files', 'readwrite');
+    const store = tx.objectStore('files');
+    store.add(newFile).onsuccess = () => {
+      loadFiles();
+      renderStorageInfo();
+    };
+  }
+  e.target.value = '';
+});
+
+// Read file as DataURL helper
+function readFileAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result);
+    reader.onerror = e => rej(e);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Drag & drop upload to dropzone
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropzone.classList.add('active');
+});
+dropzone.addEventListener('dragleave', e => {
+  dropzone.classList.remove('active');
+});
+dropzone.addEventListener('drop', async e => {
+  e.preventDefault();
+  dropzone.classList.remove('active');
+
+  const files = e.dataTransfer.files;
+  if(!files.length) return;
+
+  for(const file of files) {
+    if(!checkStorageLimit(file.size)) continue;
+
+    const dataUrl = await readFileAsDataURL(file);
+    const newFile = {
+      id: Date.now() + Math.random(),
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      folder: currentFolder,
+      tags: [],
+      data: dataUrl
+    };
+    const tx = db.transaction('files', 'readwrite');
+    const store = tx.objectStore('files');
+    store.add(newFile).onsuccess = () => {
+      loadFiles();
+      renderStorageInfo();
+    };
+  }
+});
+
+// New folder button
+document.getElementById('newFolderBtn').addEventListener('click', () => {
+  let newFolderName = prompt('Enter new folder name:');
+  if(!newFolderName) return;
+  if(newFolderName.includes(separator)) {
+    alert(`Folder name cannot contain '${separator}'`);
+    return;
+  }
+
+  // Build full folder path relative to current folder
+  const newFolderPath = currentFolder === '/' ? separator + newFolderName : currentFolder + separator + newFolderName;
+
+  // Check if folder already exists
+  if(getAllFolders().includes(newFolderPath)) {
+    alert('Folder already exists');
+    return;
+  }
+
+  // Add empty folder by creating a dummy file with zero size and name ".folder"
+  // But better: no dummy files - just create an empty folder record?
+  // Since our store only has files, folders are implied by file folders.
+  // So to create an empty folder we store a dummy hidden file representing the folder.
+  // But for simplicity, here create an empty dummy file with name ".folder" to mark folder existence.
+  const dummyFile = {
+    id: Date.now() + Math.random(),
+    name: '.folder',
+    size: 0,
+    type: 'folder/dummy',
+    folder: newFolderPath,
+    tags: [],
+    data: ''
+  };
+
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+  store.add(dummyFile).onsuccess = () => {
+    loadFiles();
+    loadFoldersAndTags();
+  };
+});
+
+// Batch delete selected files — for demo, delete all files in current folder
+document.getElementById('batchDelete').addEventListener('click', () => {
+  if(!confirm('Delete all files in current folder?')) return;
+
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+
+  filesCache.forEach(f => {
+    if(f.folder === currentFolder) store.delete(f.id);
+  });
+  tx.oncomplete = () => {
+    loadFiles();
+    loadFoldersAndTags();
+  };
+});
+
+// Empty database
+document.getElementById('emptyDb').addEventListener('click', () => {
+  if(!confirm('Clear all files and folders? This cannot be undone.')) return;
+  const tx = db.transaction('files', 'readwrite');
+  tx.objectStore('files').clear();
+  tx.oncomplete = () => {
+    filesCache = [];
+    usedStorage = 0;
+    currentFolder = '/';
+    selectedTags.clear();
+    renderFiles();
+    loadFoldersAndTags();
+    renderBreadcrumbs();
+    renderStorageInfo();
+  };
+});
+
+// Search input event
+document.getElementById('search').addEventListener('input', () => {
+  renderFiles();
+});
+
+// Sort by and view mode events
+document.getElementById('sortBy').addEventListener('change', () => {
+  renderFiles();
+});
+document.getElementById('viewMode').addEventListener('change', e => {
+  const mode = e.target.value;
+  const container = document.getElementById('filesContainer');
+  if(mode === 'list') {
+    container.className = 'flex flex-col gap-2';
+  } else {
+    container.className = 'grid grid-cols-4 gap-4';
+  }
+  renderFiles();
+});
+
+// Show used storage info
+function renderStorageInfo() {
+  const el = document.getElementById('storageInfo');
+  el.textContent = `Used ${formatSize(usedStorage)} / 10 GB storage (IndexedDB)`;
+}
+
+function titlefunction() {
+  if (draggedFolderName != null) {
+    document.title = draggedFolderName;
+  }
+}
+
+// Initial setup after DB opens
+request.onsuccess = e => {
+  db = e.target.result;
+  loadFiles();
+  loadFoldersAndTags();
+  renderBreadcrumbs();
+  renderStorageInfo();
+};
+
+titlefunction();
+
+// Accessibility and keyboard support for folder list navigation could be added later
+
+</script>
+</body>
+</html>
