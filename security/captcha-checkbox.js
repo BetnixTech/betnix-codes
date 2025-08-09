@@ -18,7 +18,7 @@
       font-family:sans-serif;user-select:none;`;
     container.innerHTML = `
       <input type="checkbox" id="humanCheck" style="width:20px;height:20px;margin-right:10px;cursor:pointer;">
-      <label id="captchaLabel" for="humanCheck">I'm not a robot</label>
+      <label id="captchaLabel" for="humanCheck">I'm not a robot<img src="security.png" width="25" height="26"></label>
       <input type="hidden" id="captchaToken" name="captcha_token">
     `;
     document.getElementById('myForm').prepend(container);
