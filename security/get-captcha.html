@@ -1,24 +1,23 @@
-<input type="text" id="myInput" value="<iframe src="checkbox.html">">
-<button onclick="copyText()">Copy Text</button>
+<div class="code-container">
+  <pre><code id="myHtmlCode">
+    &lt;iframe src="checkbox.html"&gt;
+    
+  </code></pre>
+  <button onclick="copyHtmlCode()">Copy HTML</button>
+</div>
 
 <script>
-function copyText() {
-  // Get the text field
-  var copyText = document.getElementById("myInput");
+  function copyHtmlCode() {
+  const codeElement = document.getElementById('myHtmlCode');
+  const htmlCode = codeElement.innerText; // Get the raw text content of the code block
 
-  // Select the text field's content
-  copyText.select();
-  copyText.setSelectionRange(0, 99999); // For mobile devices
-
-  // Copy the text inside the text field
-  navigator.clipboard.writeText(copyText.value)
+  navigator.clipboard.writeText(htmlCode)
     .then(() => {
-      console.log('Text copied to clipboard!');
-      // Optional: Provide visual feedback to the user
-      alert("Text copied!"); 
+      alert('HTML code copied to clipboard!');
     })
     .catch(err => {
-      console.error('Failed to copy text: ', err);
+      console.error('Failed to copy HTML code: ', err);
+      alert('Failed to copy HTML code. Please try again or copy manually.');
     });
 }
 </script>
