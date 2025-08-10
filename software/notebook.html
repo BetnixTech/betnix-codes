@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Advanced Notebook App with Per-Notebook Storage</title>
+<style>
+  :root {
+    --bg-light: #fafafa;
+    --bg-dark: #121212;
+    --text-light: #222222;
+    --text-dark: #e0e0e0;
+    --primary: #3a86ff;
+    --primary-hover: #265dcc;
+    --secondary: #ffbe0b;
+    --secondary-hover: #cca508;
+    --border-light: #ddd;
+    --border-dark: #333;
+    --shadow-light: rgba(0,0,0,0.1);
+    --shadow-dark: rgba(0,0,0,0.7);
+    --font-sans: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    --font-mono: "Courier New", Courier, monospace;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--bg-light);
+    color: var(--text-light);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  body.dark {
+    background: var(--bg-dark);
+    color: var(--text-dark);
+  }
+  #sidebar {
+    width: 280px;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    box-sizing: border-box;
+  }
+  #sidebar h2 {
+    margin: 0 0 1rem 0;
+  }
+  #nav-menu {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  #nav-menu button {
+    flex: 1;
+    background: var(--secondary);
+    border: none;
+    color: var(--text-light);
+    font-weight: bold;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+  }
+  #nav-menu button:hover:not(:disabled) {
+    background-color: var(--secondary-hover);
+  }
+  #nav-menu button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  #nav-menu button.selected {
+    background: var(--text-light);
+    color: var(--primary);
+  }
+  #content-sidebar {
+    flex: 1;
+    background: white;
+    color: black;
+    border-radius: 8px;
+    overflow-y: auto;
+    box-shadow: 0 0 10px var(--shadow-light);
+    padding: 1rem;
+    box-sizing: border-box;
+  }
+  body.dark #content-sidebar {
+    background: #1a1a1a;
+    color: var(--text-dark);
+    box-shadow: 0 0 15px var(--shadow-dark);
+  }
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+  }
+  .list-header h3 {
+    margin: 0;
+  }
+  .list-header button {
+    background: var(--primary);
+    border: none;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    padding: 0.2rem 0.7rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  .list-header button:hover {
+    background-color: var(--primary-hover);
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ul li {
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    transition: background-color 0.3s;
+  }
+  ul li:hover {
+    background-color: var(--primary-hover);
+    color: white;
+  }
+  ul li.selected {
+    background-color: var(--secondary);
+    color: var(--primary);
+    font-weight: bold;
+  }
+  ul li button.delete-btn {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 0.4rem;
+    line-height: 1;
+  }
+  ul li button.delete-btn:hover {
+    color: #f44336;
+  }
+  input[type="text"], textarea {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    border: 1.8px solid var(--border-light);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    box-sizing: border-box;
+    width: 100%;
+    transition: border-color 0.3s ease;
+    background: white;
+    color: black;
+  }
+  input[type="text"]:focus, textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+  }
+  body.dark input[type="text"], body.dark textarea {
+    background: #222;
+    color: var(--text-dark);
+    border-color: var(--border-dark);
+  }
+  body.dark input[type="text"]:focus, body.dark textarea:focus {
+    border-color: var(--primary);
+  }
+  #note-title {
+    font-weight: bold;
+    margin: 1rem 1rem 0.3rem 1rem;
+  }
+  #note-editor {
+    flex: 1;
+    margin: 0 1rem 1rem 1rem;
+    resize: none;
+    height: 45vh;
+  }
+  #preview {
+    flex: 1;
+    margin: 0 1rem 1rem 1rem;
+    overflow-y: auto;
+    border-radius: 8px;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: white;
+    color: black;
+  }
+  body.dark #preview {
+    background: #222;
+    color: var(--text-dark);
+  }
+  #editor-toolbar {
+    margin: 0 1rem;
+    display: flex;
+    gap: 0.3rem;
+  }
+  #editor-toolbar button {
+    background: var(--primary);
+    border: none;
+    color: white;
+    border-radius: 6px;
+    font-weight: bold;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  #editor-toolbar button:hover {
+    background-color: var(--primary-hover);
+  }
+  #tags {
+    margin: 0 1rem 1rem 1rem;
+  }
+  #tag-input {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  #tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .tag {
+    background: var(--secondary);
+    color: var(--primary);
+    border-radius: 12px;
+    padding: 0.2rem 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.9rem;
+  }
+  .tag:hover {
+    background: var(--secondary-hover);
+  }
+  #bottom-bar {
+    display: flex;
+    gap: 0.7rem;
+    padding: 0 1rem 1rem 1rem;
+  }
+  #bottom-bar button {
+    flex: 1;
+    background: var(--secondary);
+    border: none;
+    color: var(--text-light);
+    font-weight: bold;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+  }
+  #bottom-bar button:hover {
+    background-color: var(--secondary-hover);
+  }
+  @media (max-width: 768px) {
+    body {
+      flex-direction: column;
+    }
+    #sidebar {
+      width: 100%;
+      height: auto;
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 0.5rem;
+    }
+    #content-sidebar {
+      flex: none;
+      height: 200px;
+      margin-bottom: 1rem;
+    }
+    #main {
+      flex: 1;
+      height: auto;
+    }
+    #note-editor {
+      height: 200px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <h2>Notebook App</h2>
+  <nav id="nav-menu">
+    <button id="menu-home" class="selected" data-menu="home">Home</button>
+    <button id="menu-notebooks" data-menu="notebooks">Notebooks</button>
+    <button id="menu-sources" data-menu="sources" disabled>Sources</button>
+  </nav>
+  <div id="content-sidebar"></div>
+</div>
+<div id="main" style="display:flex; flex-direction:column; flex:1;">
+  <input type="text" id="note-title" placeholder="Select or create a note..." disabled />
+  <div id="editor-toolbar" style="display:none;">
+    <button data-cmd="bold" title="Bold (Ctrl+B)">B</button>
+    <button data-cmd="italic" title="Italic (Ctrl+I)">I</button>
+    <button data-cmd="underline" title="Underline (Ctrl+U)">U</button>
+    <button data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+    <button data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+    <button data-cmd="formatBlock" data-value="pre" title="Code Block">Code</button>
+    <button id="toggle-preview" title="Toggle Preview">Preview</button>
+  </div>
+  <textarea id="note-editor" placeholder="Select or create a note..." disabled></textarea>
+  <div id="preview" style="display:none;"></div>
+
+  <div id="tags" style="display:none;">
+    <input type="text" id="tag-input" placeholder="Add tags (comma separated)" />
+    <div id="tags-list"></div>
+  </div>
+
+  <div id="bottom-bar" style="display:none;">
+    <button id="add-notebook-btn">Add Notebook</button>
+    <button id="add-note-btn">Add Note</button>
+    <button id="undo-btn" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="redo-btn" title="Redo (Ctrl+Y)">Redo</button>
+    <button id="dark-mode-btn" title="Toggle Dark Mode">Dark Mode</button>
+    <button id="export-btn">Export</button>
+    <button id="import-btn">Import</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+(() => {
+  const NOTEBOOKS_INDEX_KEY = 'notebooks-index';
+
+  let notebooks = [];
+  let selectedNotebookId = null;
+  let selectedNoteId = null;
+  let showPreview = false;
+  let undoStack = [];
+  let redoStack = [];
+
+  const navMenu = document.getElementById('nav-menu');
+  const contentSidebar = document.getElementById('content-sidebar');
+  const menuHomeBtn = document.getElementById('menu-home');
+  const menuNotebooksBtn = document.getElementById('menu-notebooks');
+  const menuSourcesBtn = document.getElementById('menu-sources');
+
+  const addNotebookBtn = document.getElementById('add-notebook-btn');
+  const addNoteBtn = document.getElementById('add-note-btn');
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  const darkModeBtn = document.getElementById('dark-mode-btn');
+  const exportBtn = document.getElementById('export-btn');
+  const importBtn = document.getElementById('import-btn');
+
+  const noteTitleInput = document.getElementById('note-title');
+  const noteEditor = document.getElementById('note-editor');
+  const previewDiv = document.getElementById('preview');
+  const editorToolbar = document.getElementById('editor-toolbar');
+
+  const tagInput = document.getElementById('tag-input');
+  const tagsListDiv = document.getElementById('tags-list');
+  const tagsDiv = document.getElementById('tags');
+
+  function generateId() {
+    return 'id-' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // Save list of notebook IDs
+  function saveNotebooksIndex() {
+    const ids = notebooks.map(nb => nb.id);
+    localStorage.setItem(NOTEBOOKS_INDEX_KEY, JSON.stringify(ids));
+  }
+
+  // Load notebooks index and each notebook separately
+  function loadData() {
+    notebooks = [];
+    const indexStr = localStorage.getItem(NOTEBOOKS_INDEX_KEY);
+    if (!indexStr) return;
+    const ids = JSON.parse(indexStr);
+    ids.forEach(id => {
+      const nbStr = localStorage.getItem(`notebook-${id}`);
+      if (nbStr) {
+        try {
+          const nb = JSON.parse(nbStr);
+          notebooks.push(nb);
+        } catch {}
+      }
+    });
+    const darkModeStored = localStorage.getItem('darkMode') === 'true';
+    if (darkModeStored) document.body.classList.add('dark');
+  }
+
+  // Save a single notebook individually
+  function saveNotebook(nb) {
+    localStorage.setItem(`notebook-${nb.id}`, JSON.stringify(nb));
+    saveNotebooksIndex();
+  }
+
+  // Delete a single notebook by id
+  function deleteNotebook(id) {
+    localStorage.removeItem(`notebook-${id}`);
+    notebooks = notebooks.filter(nb => nb.id !== id);
+    saveNotebooksIndex();
+  }
+
+  // Save all notebooks (calls saveNotebook for each)
+  function saveData() {
+    notebooks.forEach(nb => saveNotebook(nb));
+    saveDarkMode(document.body.classList.contains('dark'));
+  }
+
+  function findNotebook(id) {
+    return notebooks.find(nb => nb.id === id);
+  }
+
+  function findNote(id) {
+    if (!selectedNotebookId) return null;
+    const nb = findNotebook(selectedNotebookId);
+    if (!nb) return null;
+    return nb.notes.find(n => n.id === id);
+  }
+
+  function saveDarkMode(enabled) {
+    localStorage.setItem('darkMode', enabled);
+  }
+
+  // Renders notebook list sidebar
+  function renderNotebooks() {
+    if (currentMenu !== 'notebooks') return;
+    contentSidebar.innerHTML = `
+      <div class="list-header">
+        <h3>Notebooks</h3>
+        <button id="add-notebook-sidebar-btn">+ Add</button>
+      </div>
+      <ul>
+        ${notebooks.map(nb => `
+          <li data-id="${nb.id}" class="${nb.id === selectedNotebookId ? 'selected' : ''}">
+            <span class="notebook-name">${escapeHtml(nb.name)}</span>
+            <button class="delete-btn" title="Delete Notebook">&times;</button>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+
+    const addBtn = document.getElementById('add-notebook-sidebar-btn');
+    addBtn.onclick = () => {
+      const name = prompt('Enter new notebook name:');
+      if (!name) return;
+      const newNb = { id: generateId(), name: name.trim(), notes: [], sources: [] };
+      notebooks.push(newNb);
+      saveNotebook(newNb);
+      saveNotebooksIndex();
+      selectedNotebookId = newNb.id;
+      selectedNoteId = null;
+      renderNotebooks();
+      renderNotes();
+      updateEditorState(false);
+      menuSourcesBtn.disabled = false;
+      renderSources();
+    };
+
+    // Notebook selection and delete buttons
+    contentSidebar.querySelectorAll('ul li').forEach(li => {
+      li.onclick = e => {
+        // Only if not clicking delete button inside
+        if (e.target.classList.contains('delete-btn')) return;
+        const id = li.dataset.id;
+        if (id === selectedNotebookId) return;
+        selectedNotebookId = id;
+        selectedNoteId = null;
+        renderNotebooks();
+        renderNotes();
+        updateEditorState(false);
+        menuSourcesBtn.disabled = false;
+        renderSources();
+      };
+    });
+
+    contentSidebar.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const li = btn.parentElement;
+        const id = li.dataset.id;
+        if (confirm(`Delete notebook "${findNotebook(id).name}"? All its notes will be lost.`)) {
+          deleteNotebook(id);
+          if (selectedNotebookId === id) {
+            selectedNotebookId = null;
+            selectedNoteId = null;
+            updateEditorState(false);
+            menuSourcesBtn.disabled = true;
+            contentSidebar.innerHTML = '';
+          }
+          renderNotebooks();
+          renderNotes();
+        }
+      };
+    });
+  }
+
+  // Renders notes list sidebar for selected notebook
+  function renderNotes() {
+    if (currentMenu !== 'notebooks') return;
+    if (!selectedNotebookId) {
+      contentSidebar.innerHTML = '<p style="padding:1rem;">Select a notebook first to see notes.</p>';
+      updateEditorState(false);
+      return;
+    }
+    const nb = findNotebook(selectedNotebookId);
+    if (!nb) return;
+    contentSidebar.innerHTML = `
+      <div class="list-header">
+        <h3>Notes in "${escapeHtml(nb.name)}"</h3>
+        <button id="add-note-sidebar-btn">+ Add Note</button>
+      </div>
+      <ul>
+        ${nb.notes.map(note => `
+          <li data-id="${note.id}" class="${note.id === selectedNoteId ? 'selected' : ''}">
+            <span class="note-title">${escapeHtml(note.title)}</span>
+            <button class="delete-btn" title="Delete Note">&times;</button>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+
+    const addNoteBtnSidebar = document.getElementById('add-note-sidebar-btn');
+    addNoteBtnSidebar.onclick = () => {
+      const newNote = { id: generateId(), title: 'New Note', content: '', tags: [] };
+      nb.notes.unshift(newNote);
+      saveNotebook(nb);
+      renderNotes();
+      selectNote(newNote.id);
+    };
+
+    contentSidebar.querySelectorAll('ul li').forEach(li => {
+      li.onclick = e => {
+        if (e.target.classList.contains('delete-btn')) return;
+        const id = li.dataset.id;
+        selectNote(id);
+      };
+    });
+
+    contentSidebar.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const li = btn.parentElement;
+        const id = li.dataset.id;
+        if (confirm('Delete this note?')) {
+          const idx = nb.notes.findIndex(n => n.id === id);
+          if (idx > -1) {
+            nb.notes.splice(idx, 1);
+            saveNotebook(nb);
+            if (selectedNoteId === id) {
+              selectedNoteId = null;
+              updateEditorState(false);
+            }
+            renderNotes();
+          }
+        }
+      };
+    });
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>"']/g, m => {
+      switch (m) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+      }
+    });
+  }
+
+  function selectNote(id) {
+    if (!selectedNotebookId) return;
+    const nb = findNotebook(selectedNotebookId);
+    if (!nb) return;
+    const note = nb.notes.find(n => n.id === id);
+    if (!note) return;
+
+    selectedNoteId = id;
+    renderNotes();
+    noteTitleInput.value = note.title;
+    noteEditor.value = note.content;
+    renderTags(note.tags);
+    updateEditorState(true);
+    undoStack = [note.content];
+    redoStack = [];
+    if (showPreview) updatePreview();
+  }
+
+  function updateEditorState(enabled) {
+    noteTitleInput.disabled = !enabled;
+    noteEditor.disabled = !enabled;
+    tagInput.disabled = !enabled;
+    editorToolbar.style.display = enabled ? 'flex' : 'none';
+    tagsDiv.style.display = enabled ? 'block' : 'none';
+    document.getElementById('bottom-bar').style.display = enabled ? 'flex' : 'none';
+    previewDiv.style.display = showPreview && enabled ? 'block' : 'none';
+    if (!enabled) {
+      noteTitleInput.value = '';
+      noteEditor.value = '';
+      tagsListDiv.innerHTML = '';
+    }
+  }
+
+  // Tags rendering and input
+  function renderTags(tags) {
+    tagsListDiv.innerHTML = '';
+    tags.forEach(tag => {
+      const tagEl = document.createElement('span');
+      tagEl.textContent = tag;
+      tagEl.className = 'tag';
+      tagEl.onclick = () => {
+        removeTag(tag);
+      };
+      tagsListDiv.appendChild(tagEl);
+    });
+  }
+
+  function addTagsFromInput() {
+    if (!selectedNotebookId || !selectedNoteId) return;
+    const nb = findNotebook(selectedNotebookId);
+    const note = findNote(selectedNoteId);
+    if (!note) return;
+
+    const raw = tagInput.value.trim();
+    if (!raw) return;
+    const newTags = raw.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    newTags.forEach(t => {
+      if (!note.tags.includes(t)) {
+        note.tags.push(t);
+      }
+    });
+    tagInput.value = '';
+    renderTags(note.tags);
+    saveNotebook(nb);
+  }
+
+  function removeTag(tag) {
+    if (!selectedNotebookId || !selectedNoteId) return;
+    const nb = findNotebook(selectedNotebookId);
+    const note = findNote(selectedNoteId);
+    if (!note) return;
+    note.tags = note.tags.filter(t => t !== tag);
+    renderTags(note.tags);
+    saveNotebook(nb);
+  }
+
+  function pushUndoState(content) {
+    if (undoStack.length > 100) undoStack.shift();
+    undoStack.push(content);
+    redoStack = [];
+  }
+
+  function undo() {
+    if (undoStack.length < 2) return;
+    const current = undoStack.pop();
+    redoStack.push(current);
+    const previous = undoStack[undoStack.length - 1];
+    noteEditor.value = previous;
+    saveNote();
+    if (showPreview) updatePreview();
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop();
+    undoStack.push(next);
+    noteEditor.value = next;
+    saveNote();
+    if (showPreview) updatePreview();
+  }
+
+  function updatePreview() {
+    if (!showPreview) return;
+    previewDiv.innerHTML = marked.parse(noteEditor.value);
+  }
+
+  function execCommand(cmd, value = null) {
+    const textarea = noteEditor;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+
+    let newText = selectedText;
+    let insertBefore = '';
+    let insertAfter = '';
+
+    switch (cmd) {
+      case 'bold':
+        insertBefore = '**';
+        insertAfter = '**';
+        break;
+      case 'italic':
+        insertBefore = '_';
+        insertAfter = '_';
+        break;
+      case 'underline':
+        insertBefore = '<u>';
+        insertAfter = '</u>';
+        break;
+      case 'insertUnorderedList':
+        newText = selectedText
+          .split('\n')
+          .map((line) => (line.startsWith('• ') ? line : '• ' + line))
+          .join('\n');
+        break;
+      case 'insertOrderedList':
+        newText = selectedText
+          .split('\n')
+          .map((line, i) => (i + 1) + '. ' + line.replace(/^\d+\. /, ''))
+          .join('\n');
+        break;
+      case 'formatBlock':
+        if (value === 'pre') {
+          newText = '```\n' + selectedText + '\n```';
+        }
+        break;
+    }
+
+    if (insertBefore || insertAfter) {
+      newText = insertBefore + selectedText + insertAfter;
+    }
+
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+
+    textarea.value = before + newText + after;
+    textarea.selectionStart = start;
+    textarea.selectionEnd = start + newText.length;
+    textarea.focus();
+
+    pushUndoState(textarea.value);
+    saveNote();
+    if (showPreview) updatePreview();
+  }
+
+  function saveNote() {
+    if (!selectedNotebookId || !selectedNoteId) return;
+    const nb = findNotebook(selectedNotebookId);
+    if (!nb) return;
+    const note = nb.notes.find((n) => n.id === selectedNoteId);
+    if (!note) return;
+    note.title = noteTitleInput.value.trim() || 'Untitled';
+    note.content = noteEditor.value;
+    saveNotebook(nb);
+  }
+
+  // Home screen content
+  function renderHome() {
+    contentSidebar.innerHTML = `
+      <div style="padding:1rem;">
+        <h3>Welcome to your Notebook App!</h3>
+        <p>Create notebooks to organize your notes.</p>
+        <p>Select <b>Notebooks</b> to start or add a new notebook.</p>
+        <p><small>Created by your advanced notebook assistant 😎</small></p>
+      </div>
+    `;
+    updateEditorState(false);
+    menuSourcesBtn.disabled = true;
+  }
+
+  // Sources sidebar
+  function renderSources() {
+    if (!selectedNotebookId) {
+      contentSidebar.innerHTML = `<p style="padding:1rem;">Select a notebook first to manage its sources.</p>`;
+      updateEditorState(false);
+      return;
+    }
+    const nb = findNotebook(selectedNotebookId);
+    if (!nb) return;
+
+    if (!nb.sources) nb.sources = [];
+
+    contentSidebar.innerHTML = `
+      <div class="list-header">
+        <h3>Sources for "${escapeHtml(nb.name)}"</h3>
+        <button id="add-source-btn">+ Add Source</button>
+      </div>
+      <ul id="source-list">
+      ${nb.sources
+        .map(
+          (src, i) => `
+        <li data-index="${i}">
+          <input type="text" class="source-input" value="${escapeHtml(src)}" placeholder="Source URL or description" />
+          <button class="delete-btn" title="Delete Source">&times;</button>
+        </li>
+      `
+        )
+        .join('')}
+      </ul>
+      <p style="padding:0.5rem; font-size:0.9rem; color:#555;">Sources can be URLs, references, or any text.</p>
+    `;
+
+    const addSourceBtn = document.getElementById('add-source-btn');
+    addSourceBtn.onclick = () => {
+      nb.sources.push('');
+      saveNotebook(nb);
+      renderSources();
+    };
+
+    contentSidebar.querySelectorAll('.source-input').forEach((input) => {
+      input.oninput = () => {
+        const index = +input.parentElement.dataset.index;
+        nb.sources[index] = input.value;
+        saveNotebook(nb);
+      };
+    });
+
+    contentSidebar.querySelectorAll('li button.delete-btn').forEach((btn) => {
+      btn.onclick = () => {
+        const li = btn.parentElement;
+        const index = +li.dataset.index;
+        if (confirm('Delete this source?')) {
+          nb.sources.splice(index, 1);
+          saveNotebook(nb);
+          renderSources();
+        }
+      };
+    });
+  }
+
+  let currentMenu = 'home';
+
+  // Initialize app
+  function init() {
+    loadData();
+
+    // If no notebooks, create a default with a welcome note
+    if (notebooks.length === 0) {
+      const defaultNb = {
+        id: generateId(),
+        name: 'Default Notebook',
+        notes: [{ id: generateId(), title: 'Welcome Note', content: 'Start typing your notes here...', tags: [] }],
+        sources: [],
+      };
+      notebooks.push(defaultNb);
+      saveNotebook(defaultNb);
+      saveNotebooksIndex();
+    }
+
+    // Select first notebook and note if none selected
+    if (!selectedNotebookId) selectedNotebookId = notebooks[0].id;
+    if (!selectedNoteId && notebooks[0].notes.length > 0) selectedNoteId = notebooks[0].notes[0].id;
+
+    // Setup menu buttons
+    [menuHomeBtn, menuNotebooksBtn, menuSourcesBtn].forEach((btn) => {
+      btn.onclick = () => {
+        currentMenu = btn.dataset.menu;
+        [...navMenu.querySelectorAll('button')].forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        switch (currentMenu) {
+          case 'home':
+            renderHome();
+            break;
+          case 'notebooks':
+            menuSourcesBtn.disabled = !selectedNotebookId;
+            renderNotebooks();
+            renderNotes();
+            if (selectedNoteId) selectNote(selectedNoteId);
+            break;
+          case 'sources':
+            renderSources();
+            break;
+        }
+      };
+    });
+
+    // Editor toolbar buttons
+    editorToolbar.querySelectorAll('button[data-cmd]').forEach((btn) => {
+      btn.onclick = () => {
+        execCommand(btn.dataset.cmd, btn.dataset.value || null);
+      };
+    });
+
+    document.getElementById('toggle-preview').onclick = () => {
+      showPreview = !showPreview;
+      if (showPreview) {
+        previewDiv.style.display = 'block';
+        noteEditor.style.display = 'none';
+        updatePreview();
+      } else {
+        previewDiv.style.display = 'none';
+        noteEditor.style.display = 'block';
+      }
+    };
+
+    noteTitleInput.oninput = () => saveNote();
+
+    noteEditor.oninput = (e) => {
+      pushUndoState(noteEditor.value);
+      saveNote();
+      if (showPreview) updatePreview();
+    };
+
+    tagInput.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTagsFromInput();
+      }
+    };
+
+    addNotebookBtn.onclick = () => {
+      const name = prompt('Enter notebook name:');
+      if (!name) return;
+      const newNb = { id: generateId(), name: name.trim(), notes: [], sources: [] };
+      notebooks.push(newNb);
+      saveNotebook(newNb);
+      saveNotebooksIndex();
+      selectedNotebookId = newNb.id;
+      selectedNoteId = null;
+      renderNotebooks();
+      renderNotes();
+      updateEditorState(false);
+      menuSourcesBtn.disabled = false;
+      renderSources();
+    };
+
+    addNoteBtn.onclick = () => {
+      if (!selectedNotebookId) {
+        alert('Select a notebook first');
+        return;
+      }
+      const nb = findNotebook(selectedNotebookId);
+      const newNote = { id: generateId(), title: 'New Note', content: '', tags: [] };
+      nb.notes.unshift(newNote);
+      saveNotebook(nb);
+      renderNotes();
+      selectNote(newNote.id);
+    };
+
+    undoBtn.onclick = () => undo();
+    redoBtn.onclick = () => redo();
+
+    darkModeBtn.onclick = () => {
+      document.body.classList.toggle('dark');
+      saveDarkMode(document.body.classList.contains('dark'));
+    };
+
+    exportBtn.onclick = () => {
+      const data = JSON.stringify(notebooks, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'notebooks-export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    importBtn.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json';
+      input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const imported = JSON.parse(e.target.result);
+            if (Array.isArray(imported)) {
+              notebooks = imported;
+              // Save each notebook separately
+              notebooks.forEach((nb) => saveNotebook(nb));
+              saveNotebooksIndex();
+              if (currentMenu === 'notebooks') renderNotebooks();
+              if (currentMenu === 'sources') renderSources();
+              alert('Import successful!');
+            } else {
+              alert('Invalid import file.');
+            }
+          } catch {
+            alert('Failed to parse import file.');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    };
+
+    // Start on notebooks menu for smooth UX
+    currentMenu = 'notebooks';
+    [...navMenu.querySelectorAll('button')].forEach((b) => b.classList.remove('selected'));
+    menuNotebooksBtn.classList.add('selected');
+
+    renderNotebooks();
+    renderNotes();
+    if (selectedNoteId) selectNote(selectedNoteId);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
