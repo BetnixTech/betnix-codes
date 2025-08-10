@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mini Google Ads Platform with Copy & Report Fix</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 10px;
+    background: #f5f7fa;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  section {
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
+    margin-bottom: 30px;
+    padding: 15px 20px;
+  }
+  label {
+    display: block;
+    margin-top: 12px;
+    font-weight: bold;
+  }
+  input[type=text], input[type=url], input[type=number], textarea {
+    width: 100%;
+    max-width: 400px;
+    padding: 6px;
+    margin-top: 6px;
+    box-sizing: border-box;
+  }
+  button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background: #4285f4;
+    border: none;
+    color: white;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #357ae8;
+  }
+  .campaign {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 12px;
+    margin-bottom: 15px;
+    background: #fafafa;
+  }
+  .campaign-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ads-list {
+    margin-top: 10px;
+  }
+  .ad-wrapper {
+    margin-bottom: 12px;
+  }
+  .show-ad-btn {
+    padding: 6px 10px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    background: #4285f4;
+    color: white;
+  }
+  .show-ad-btn:hover {
+    background: #357ae8;
+  }
+  .report-btn {
+    background: #e84545;
+    color: white;
+  }
+  .report-btn:hover {
+    background: #b33333;
+  }
+  .copy-btn {
+    background: #34a853;
+    color: white;
+  }
+  .copy-btn:hover {
+    background: #2c8c43;
+  }
+  .ad-banner {
+    border: 1px solid #bbb;
+    padding: 10px;
+    border-radius: 5px;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    position: relative;
+  }
+  .ad-buttons {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 8px;
+  }
+  .report-btn, .copy-btn {
+    position: static; /* remove absolute */
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+  }
+  .ad-banner img {
+    max-width: 120px;
+    max-height: 90px;
+    object-fit: contain;
+    border-radius: 5px;
+    flex-shrink: 0;
+    background: #eee;
+  }
+  .ad-text {
+    flex-grow: 1;
+  }
+  .ad-title {
+    font-weight: bold;
+    font-size: 1.1em;
+  }
+  .ad-desc {
+    margin: 6px 0;
+    color: #333;
+  }
+  .ad-url {
+    color: blue;
+    text-decoration: underline;
+    font-size: 0.9em;
+  }
+  .stats {
+    font-size: 0.85em;
+    color: #555;
+    margin-top: 4px;
+  }
+  #adsDisplay {
+    border: 2px dashed #ccc;
+    padding: 12px;
+    min-height: 120px;
+    background: white;
+  }
+  .copy-message {
+    margin-top: 10px;
+    color: green;
+    font-weight: bold;
+    display: none;
+  }
+  .image-upload-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 420px;
+    margin-top: 6px;
+  }
+  .image-upload-wrapper input[type=url] {
+    flex-grow: 1;
+  }
+  @media (max-width: 600px) {
+    input[type=text], input[type=url], input[type=number], textarea {
+      max-width: 100%;
+    }
+    .ad-banner {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .ad-banner img {
+      max-width: 100%;
+      max-height: none;
+      margin-bottom: 10px;
+    }
+    .image-upload-wrapper {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .image-upload-wrapper button {
+      width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>Mini Google Ads Platform with Copy & Report Fix</h1>
+
+<section id="createCampaignSection">
+  <h2>Create New Campaign</h2>
+  <form id="campaignForm">
+    <label for="campaignName">Campaign Name</label>
+    <input type="text" id="campaignName" required maxlength="50" />
+
+    <label for="campaignBudget">Daily Budget ($)</label>
+    <input type="number" id="campaignBudget" required min="1" step="0.01" value="10" />
+
+    <button type="submit">Create Campaign</button>
+  </form>
+</section>
+
+<section id="campaignsSection">
+  <h2>Your Campaigns</h2>
+  <div id="campaignsContainer"></div>
+</section>
+
+<section id="adsCreationSection" style="display:none;">
+  <h2>Create Ad for Campaign: <span id="currentCampaignName"></span></h2>
+  <form id="adForm">
+    <label for="adTitle">Ad Title</label>
+    <input type="text" id="adTitle" maxlength="60" required />
+
+    <label for="adDescription">Ad Description</label>
+    <textarea id="adDescription" maxlength="150" required></textarea>
+
+    <label for="adUrl">Final URL</label>
+    <input type="url" id="adUrl" placeholder="https://example.com" required />
+
+    <label for="adImageUrl">Image URL</label>
+    <div class="image-upload-wrapper">
+      <input type="url" id="adImageUrl" placeholder="https://example.com/image.jpg" required />
+      <input type="file" id="imageUpload" accept="image/*" />
+    </div>
+
+    <label for="adBid">Max CPC Bid ($)</label>
+    <input type="number" id="adBid" min="0.01" step="0.01" value="0.5" required />
+
+    <label for="adKeywords">Keywords (comma-separated)</label>
+    <input type="text" id="adKeywords" placeholder="e.g. shoes, sneakers, sport" />
+
+    <button type="submit">Add Ad</button>
+  </form>
+</section>
+
+<section>
+  <h2>Publisher Ad Display (Filter by Keyword)</h2>
+  <input
+    type="text"
+    id="keywordFilter"
+    placeholder="Type keyword to target ads (or leave blank to show all)"
+    style="margin-bottom: 15px; width: 100%; max-width: 400px; padding: 6px;"
+  />
+  <div id="adsDisplay"></div>
+  <div id="copyMessage" class="copy-message" role="alert">HTML code copied to clipboard!</div>
+</section>
+
+<script>
+  const STORAGE_CAMPAIGNS_KEY = 'miniGoogleAdsCampaigns';
+  let campaigns = JSON.parse(localStorage.getItem(STORAGE_CAMPAIGNS_KEY)) || [];
+  let currentCampaignId = null;
+
+  const campaignsContainer = document.getElementById('campaignsContainer');
+  const adsDisplay = document.getElementById('adsDisplay');
+  const copyMessage = document.getElementById('copyMessage');
+
+  document.getElementById('imageUpload').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById('adImageUrl').value = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function saveCampaigns() {
+    localStorage.setItem(STORAGE_CAMPAIGNS_KEY, JSON.stringify(campaigns));
+  }
+
+  function genId() {
+    return Date.now().toString() + Math.floor(Math.random() * 1000);
+  }
+
+  function renderCampaigns() {
+    campaignsContainer.innerHTML = '';
+    if (campaigns.length === 0) {
+      campaignsContainer.innerHTML = '<p>No campaigns yet. Create one above!</p>';
+      return;
+    }
+
+    campaigns.forEach(camp => {
+      const campDiv = document.createElement('div');
+      campDiv.className = 'campaign';
+
+      const spentToday = camp.ads.reduce((sum, ad) => sum + (ad.stats.spent || 0), 0);
+
+      const header = document.createElement('div');
+      header.className = 'campaign-header';
+
+      const title = document.createElement('div');
+      title.innerHTML = `<strong>${camp.name}</strong> - Daily Budget: $${camp.budget.toFixed(2)} | Spent Today: $${spentToday.toFixed(2)}`;
+
+      const buttons = document.createElement('div');
+
+      const addAdBtn = document.createElement('button');
+      addAdBtn.textContent = 'Add Ad';
+      addAdBtn.onclick = () => {
+        currentCampaignId = camp.id;
+        document.getElementById('currentCampaignName').textContent = camp.name;
+        document.getElementById('adsCreationSection').style.display = 'block';
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      };
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete Campaign';
+      delBtn.className = 'delete-btn';
+      delBtn.style.background = '#e84545';
+      delBtn.style.color = 'white';
+      delBtn.style.marginLeft = '10px';
+      delBtn.onclick = () => {
+        if (confirm(`Delete campaign "${camp.name}" and all its ads?`)) {
+          campaigns = campaigns.filter(c => c.id !== camp.id);
+          saveCampaigns();
+          renderCampaigns();
+          renderAdsDisplay();
+          document.getElementById('adsCreationSection').style.display = 'none';
+        }
+      };
+
+      buttons.appendChild(addAdBtn);
+      buttons.appendChild(delBtn);
+
+      header.appendChild(title);
+      header.appendChild(buttons);
+      campDiv.appendChild(header);
+
+      if (camp.ads.length > 0) {
+        const adsList = document.createElement('div');
+        adsList.className = 'ads-list';
+
+        camp.ads.forEach(ad => {
+          adsList.appendChild(createAdWrapper(camp, ad));
+        });
+
+        campDiv.appendChild(adsList);
+      } else {
+        const noAdsMsg = document.createElement('p');
+        noAdsMsg.textContent = 'No ads in this campaign yet.';
+        campDiv.appendChild(noAdsMsg);
+      }
+
+      campaignsContainer.appendChild(campDiv);
+    });
+  }
+
+  function createAdWrapper(camp, ad) {
+    const adWrapper = document.createElement('div');
+    adWrapper.className = 'ad-wrapper';
+
+    const showAdBtn = document.createElement('button');
+    showAdBtn.className = 'show-ad-btn';
+    showAdBtn.textContent = 'Show Ad';
+
+    const adBanner = document.createElement('div');
+    adBanner.className = 'ad-banner';
+    adBanner.style.display = 'none';
+
+    adBanner.innerHTML = `
+      <img src="${ad.imageUrl}" alt="Ad image" />
+      <div class="ad-text">
+        <div class="ad-title">${ad.title}</div>
+        <div class="ad-desc">${ad.description}</div>
+        <div class="ad-url">${ad.url}</div>
+        <div class="stats">
+          Impressions: ${ad.stats.impressions} | Clicks: ${ad.stats.clicks} | Spent: $${ad.stats.spent.toFixed(2)}
+        </div>
+      </div>
+    `;
+
+    const reportBtn = document.createElement('button');
+    reportBtn.className = 'report-btn';
+    reportBtn.textContent = 'Report';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy Ad HTML';
+
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.className = 'ad-buttons';
+
+    buttonsContainer.appendChild(reportBtn);
+    buttonsContainer.appendChild(copyBtn);
+
+    adBanner.appendChild(buttonsContainer);
+
+    showAdBtn.addEventListener('click', () => {
+      showAdBtn.style.display = 'none';
+      adBanner.style.display = 'flex';
+
+      ad.stats.impressions++;
+      saveCampaigns();
+      renderCampaigns();
+    });
+
+    adBanner.addEventListener('click', (e) => {
+      if (e.target === reportBtn || e.target === copyBtn) return; // Ignore buttons
+
+      const spentToday = camp.ads.reduce((sum, a) => sum + a.stats.spent, 0);
+      if (spentToday + ad.bid > camp.budget) {
+        alert('Campaign budget exhausted.');
+        return;
+      }
+
+      ad.stats.clicks++;
+      ad.stats.spent += ad.bid;
+      saveCampaigns();
+
+      window.open(ad.url, '_blank');
+
+      renderCampaigns();
+      renderAdsDisplay();
+    });
+
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          showCopyMessage();
+        }).catch(() => {
+          fallbackCopyTextToClipboard(text);
+        });
+      } else {
+        fallbackCopyTextToClipboard(text);
+      }
+    }
+
+    function fallbackCopyTextToClipboard(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) showCopyMessage();
+        else alert('Failed to copy. Try manually selecting and copying.');
+      } catch {
+        alert('Failed to copy. Try manually selecting and copying.');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    reportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const clone = adBanner.cloneNode(true);
+      const clonedReportBtn = clone.querySelector('.report-btn');
+      const clonedCopyBtn = clone.querySelector('.copy-btn');
+      if (clonedReportBtn) clonedReportBtn.remove();
+      if (clonedCopyBtn) clonedCopyBtn.remove();
+
+      copyTextToClipboard(clone.outerHTML);
+    });
+
+    copyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const clone = adBanner.cloneNode(true);
+      const clonedReportBtn = clone.querySelector('.report-btn');
+      const clonedCopyBtn = clone.querySelector('.copy-btn');
+      if (clonedReportBtn) clonedReportBtn.remove();
+      if (clonedCopyBtn) clonedCopyBtn.remove();
+
+      copyTextToClipboard(clone.outerHTML);
+    });
+
+    adWrapper.appendChild(showAdBtn);
+    adWrapper.appendChild(adBanner);
+
+    return adWrapper;
+  }
+
+  document.getElementById('campaignForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = document.getElementById('campaignName').value.trim();
+    const budget = parseFloat(document.getElementById('campaignBudget').value);
+
+    if (!name || isNaN(budget) || budget <= 0) {
+      alert('Please enter valid campaign name and budget.');
+      return;
+    }
+
+    campaigns.push({
+      id: genId(),
+      name,
+      budget,
+      ads: []
+    });
+    saveCampaigns();
+    e.target.reset();
+    renderCampaigns();
+  });
+
+  document.getElementById('adForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!currentCampaignId) {
+      alert('Select a campaign first.');
+      return;
+    }
+
+    const title = document.getElementById('adTitle').value.trim();
+    const description = document.getElementById('adDescription').value.trim();
+    const url = document.getElementById('adUrl').value.trim();
+    const imageUrl = document.getElementById('adImageUrl').value.trim();
+    const bid = parseFloat(document.getElementById('adBid').value);
+    const keywordsRaw = document.getElementById('adKeywords').value.trim();
+
+    if (!title || !description || !url || !imageUrl || isNaN(bid) || bid <= 0) {
+      alert('Please fill all ad fields with valid values.');
+      return;
+    }
+
+    const keywords = keywordsRaw ? keywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+
+    const campaign = campaigns.find(c => c.id === currentCampaignId);
+    if (!campaign) {
+      alert('Campaign not found.');
+      return;
+    }
+
+    campaign.ads.push({
+      id: genId(),
+      title,
+      description,
+      url,
+      imageUrl,
+      bid,
+      keywords,
+      stats: {
+        impressions: 0,
+        clicks: 0,
+        spent: 0
+      }
+    });
+
+    saveCampaigns();
+    e.target.reset();
+    renderCampaigns();
+  });
+
+  document.getElementById('keywordFilter').addEventListener('input', () => {
+    renderAdsDisplay();
+  });
+
+  function selectAdsToShow(keyword) {
+    const adsToShow = [];
+
+    for (const campaign of campaigns) {
+      const spentToday = campaign.ads.reduce((sum, ad) => sum + ad.stats.spent, 0);
+      if (spentToday >= campaign.budget) continue;
+
+      for (const ad of campaign.ads) {
+        if (keyword && keyword.length > 0) {
+          if (!ad.keywords.some(k => k.includes(keyword.toLowerCase()))) continue;
+        }
+        adsToShow.push({ campaign, ad });
+      }
+    }
+    return adsToShow;
+  }
+
+  function renderAdsDisplay() {
+    adsDisplay.innerHTML = '';
+
+    const filterKeyword = document.getElementById('keywordFilter').value.trim().toLowerCase();
+
+    const adsToShow = selectAdsToShow(filterKeyword);
+
+    if (adsToShow.length === 0) {
+      adsDisplay.innerHTML = `<p>No ads matching keyword "${filterKeyword}".</p>`;
+      return;
+    }
+
+    adsToShow.forEach(({ campaign, ad }) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'ad-wrapper';
+
+      const showAdBtn = document.createElement('button');
+      showAdBtn.className = 'show-ad-btn';
+      showAdBtn.textContent = `Show Ad: ${ad.title}`;
+
+      const adBanner = document.createElement('div');
+      adBanner.className = 'ad-banner';
+      adBanner.style.display = 'none';
+      adBanner.innerHTML = `
+         <style>
+.ad-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fff;
+  position: relative;
+}
+
+.ad-banner img {
+  width: 120px;
+  height: auto;
+  border-radius: 4px;
+}
+
+.ad-text {
+  flex: 1;
+}
+
+.ad-title {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.ad-desc {
+  font-size: 0.9em;
+  color: #555;
+}
+
+.ad-url {
+  font-size: 0.85em;
+  color: #1a0dab;
+  margin-top: 4px;
+}
+
+.stats {
+  font-size: 0.8em;
+  color: #777;
+  margin-top: 6px;
+}
+
+.ad-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.report-btn {
+  background: #fbbc04;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.copy-btn {
+  background: #34a853;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#copyMessage {
+  display: none;
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+</style>
+        <img src="${ad.imageUrl}" alt="Ad image" />
+        <div class="ad-text">
+          <div class="ad-title">${ad.title}</div>
+          <div class="ad-desc">${ad.description}</div>
+          <div class="ad-url"><a href="${ad.url}">${ad.url}<a></div>
+          <div class="stats">
+            Impressions: ${ad.stats.impressions} | Clicks: ${ad.stats.clicks} | Spent: $${ad.stats.spent.toFixed(2)}
+          </div>
+        </div>
+      `;
+
+      const reportBtn = document.createElement('button');
+      reportBtn.className = 'report-btn';
+      reportBtn.textContent = 'Report';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy Ad HTML';
+
+      const buttonsContainer = document.createElement('div');
+      buttonsContainer.className = 'ad-buttons';
+
+      buttonsContainer.appendChild(reportBtn);
+      buttonsContainer.appendChild(copyBtn);
+
+      adBanner.appendChild(buttonsContainer);
+
+      showAdBtn.addEventListener('click', () => {
+        showAdBtn.style.display = 'none';
+        adBanner.style.display = 'flex';
+
+        ad.stats.impressions++;
+        saveCampaigns();
+        renderCampaigns();
+      });
+
+      adBanner.addEventListener('click', (e) => {
+        if (e.target === reportBtn || e.target === copyBtn) return;
+
+        const spentToday = campaign.ads.reduce((sum, a) => sum + a.stats.spent, 0);
+        if (spentToday + ad.bid > campaign.budget) {
+          alert('Campaign budget exhausted.');
+          return;
+        }
+
+        ad.stats.clicks++;
+        ad.stats.spent += ad.bid;
+        saveCampaigns();
+
+        window.open(ad.url, '_blank');
+
+        renderCampaigns();
+        renderAdsDisplay();
+      });
+
+      reportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const clone = adBanner.cloneNode(true);
+        const clonedReportBtn = clone.querySelector('.report-btn');
+        const clonedCopyBtn = clone.querySelector('.copy-btn');
+        if (clonedReportBtn) clonedReportBtn.remove();
+        if (clonedCopyBtn) clonedCopyBtn.remove();
+
+        copyTextToClipboard(clone.outerHTML);
+      });
+
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const clone = adBanner.cloneNode(true);
+        const clonedReportBtn = clone.querySelector('.report-btn');
+        const clonedCopyBtn = clone.querySelector('.copy-btn');
+        if (clonedReportBtn) clonedReportBtn.remove();
+        if (clonedCopyBtn) clonedCopyBtn.remove();
+
+        copyTextToClipboard(clone.outerHTML);
+      });
+
+      function copyTextToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(() => {
+            showCopyMessage();
+          }).catch(() => {
+            fallbackCopyTextToClipboard(text);
+          });
+        } else {
+          fallbackCopyTextToClipboard(text);
+        }
+      }
+
+      function fallbackCopyTextToClipboard(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) showCopyMessage();
+          else alert('Failed to copy. Try manually selecting and copying.');
+        } catch {
+          alert('Failed to copy. Try manually selecting and copying.');
+        }
+        document.body.removeChild(textarea);
+      }
+
+      wrapper.appendChild(showAdBtn);
+      wrapper.appendChild(adBanner);
+      adsDisplay.appendChild(wrapper);
+    });
+  }
+
+  function showCopyMessage() {
+    copyMessage.style.display = 'block';
+    setTimeout(() => {
+      copyMessage.style.display = 'none';
+    }, 2000);
+  }
+
+  renderCampaigns();
+  renderAdsDisplay();
+</script>
+
+</body>
+</html>
